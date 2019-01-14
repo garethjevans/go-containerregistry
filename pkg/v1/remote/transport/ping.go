@@ -16,6 +16,7 @@ package transport
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"strings"
 
@@ -61,6 +62,7 @@ func parseChallenge(suffix string) map[string]string {
 }
 
 func ping(reg name.Registry, t http.RoundTripper) (*pingResp, error) {
+	logrus.Debugf("ping()")
 	client := http.Client{Transport: t}
 
 	url := fmt.Sprintf("%s://%s/v2/", reg.Scheme(), reg.Name())

@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -330,6 +332,7 @@ func (w *writer) commitImage() error {
 	u := w.url(fmt.Sprintf("/v2/%s/manifests/%s", w.ref.Context().RepositoryStr(), w.ref.Identifier()))
 
 	// Make the request to PUT the serialized manifest
+	logrus.Debugf("creating new request")
 	req, err := http.NewRequest(http.MethodPut, u.String(), bytes.NewBuffer(raw))
 	if err != nil {
 		logrus.Debugf("FAILED - http.NewRequest, %s", err)
@@ -337,6 +340,8 @@ func (w *writer) commitImage() error {
 	}
 	req.Header.Set("Content-Type", string(mt))
 
+	// attempting to reset the body
+	req.Body = ioutil.NopCloser(strings.NewReader(string(raw)))
 	resp, err := w.client.Do(req)
 	if err != nil {
 		logrus.Debugf("FAILED - w.client.Do(), %s", err)
