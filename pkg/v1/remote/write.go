@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"log"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 
 // Write pushes the provided img to the specified image reference.
 func Write(ref name.Reference, img v1.Image, auth authn.Authenticator, t http.RoundTripper) error {
+	logrus.Debugf("Write")
 	ls, err := img.Layers()
 	if err != nil {
 		return err
@@ -112,6 +114,7 @@ func (w *writer) url(path string) url.URL {
 
 // nextLocation extracts the fully-qualified URL to which we should send the next request in an upload sequence.
 func (w *writer) nextLocation(resp *http.Response) (string, error) {
+	logrus.Debugf("nextLocation")
 	loc := resp.Header.Get("Location")
 	if len(loc) == 0 {
 		return "", errors.New("missing Location header")
@@ -131,6 +134,7 @@ func (w *writer) nextLocation(resp *http.Response) (string, error) {
 // initiation if "mount" is specified, even if no "from" sources are specified.
 // However, this is not broadly applicable to all registries, e.g. ECR.
 func (w *writer) checkExisting(h v1.Hash) (bool, error) {
+	logrus.Debugf("checkExisting")
 	u := w.url(fmt.Sprintf("/v2/%s/blobs/%s", w.ref.Context().RepositoryStr(), h.String()))
 
 	resp, err := w.client.Head(u.String())
@@ -153,6 +157,7 @@ func (w *writer) checkExisting(h v1.Hash) (bool, error) {
 // upload was initiated and the body of that blob should be sent to the returned
 // location.
 func (w *writer) initiateUpload(from, mount string) (location string, mounted bool, err error) {
+	logrus.Debugf("initiateUpload")
 	u := w.url(fmt.Sprintf("/v2/%s/blobs/uploads/", w.ref.Context().RepositoryStr()))
 	uv := url.Values{}
 	if mount != "" {
@@ -192,6 +197,7 @@ func (w *writer) initiateUpload(from, mount string) (location string, mounted bo
 // On failure, this will return an error.  On success, this will return the location
 // header indicating how to commit the streamed blob.
 func (w *writer) streamBlob(blob io.ReadCloser, streamLocation string) (commitLocation string, err error) {
+	logrus.Debugf("streamBlob")
 	defer blob.Close()
 
 	req, err := http.NewRequest(http.MethodPatch, streamLocation, blob)
@@ -217,6 +223,7 @@ func (w *writer) streamBlob(blob io.ReadCloser, streamLocation string) (commitLo
 // commitBlob commits this blob by sending a PUT to the location returned from
 // streaming the blob.
 func (w *writer) commitBlob(location, digest string) error {
+	logrus.Debugf("commitBlob")
 	u, err := url.Parse(location)
 	if err != nil {
 		return err
@@ -241,6 +248,7 @@ func (w *writer) commitBlob(location, digest string) error {
 
 // uploadOne performs a complete upload of a single layer.
 func (w *writer) uploadOne(l v1.Layer) error {
+	logrus.Debugf("uploadOne")
 	var from, mount, digest string
 	if _, ok := l.(*stream.Layer); !ok {
 		// Layer isn't streamable, we should take advantage of that to
@@ -307,12 +315,15 @@ func (w *writer) uploadOne(l v1.Layer) error {
 
 // commitImage does a PUT of the image's manifest.
 func (w *writer) commitImage() error {
+	logrus.Debugf("commitImage")
 	raw, err := w.img.RawManifest()
 	if err != nil {
+		logrus.Debugf("FAILED - getting raw manifest, %s", err)
 		return err
 	}
 	mt, err := w.img.MediaType()
 	if err != nil {
+		logrus.Debugf("FAILED - getting media type, %s", err)
 		return err
 	}
 
@@ -321,22 +332,26 @@ func (w *writer) commitImage() error {
 	// Make the request to PUT the serialized manifest
 	req, err := http.NewRequest(http.MethodPut, u.String(), bytes.NewBuffer(raw))
 	if err != nil {
+		logrus.Debugf("FAILED - http.NewRequest, %s", err)
 		return err
 	}
 	req.Header.Set("Content-Type", string(mt))
 
 	resp, err := w.client.Do(req)
 	if err != nil {
+		logrus.Debugf("FAILED - w.client.Do(), %s", err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	if err := transport.CheckError(resp, http.StatusOK, http.StatusCreated, http.StatusAccepted); err != nil {
+		logrus.Debugf("FAILED - transport.CheckError, %s", err)
 		return err
 	}
 
 	digest, err := w.img.Digest()
 	if err != nil {
+		logrus.Debugf("FAILED - img.Digest, %s", err)
 		return err
 	}
 
