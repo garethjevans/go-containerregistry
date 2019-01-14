@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/sirupsen/logrus"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 )
@@ -45,6 +46,7 @@ var _ http.RoundTripper = (*bearerTransport)(nil)
 
 // RoundTrip implements http.RoundTripper
 func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
+	logrus.Debugf("entering RoundTrip()")
 	sendRequest := func() (*http.Response, error) {
 		hdr, err := bt.bearer.Authorization()
 		if err != nil {
@@ -57,7 +59,10 @@ func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
 		// the registry with which we are interacting.
 		// In case of redirect http.Client can use an empty Host, check URL too.
 		if in.Host == bt.registry.RegistryStr() || in.URL.Host == bt.registry.RegistryStr() {
+			logrus.Debugf("Setting authorisation header")
 			in.Header.Set("Authorization", hdr)
+		} else {
+			logrus.Debugf("NOT Setting authorisation header")
 		}
 		in.Header.Set("User-Agent", transportName)
 		return bt.inner.RoundTrip(in)
@@ -80,6 +85,7 @@ func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
 }
 
 func (bt *bearerTransport) refresh() error {
+	logrus.Debugf("entering refresh()")
 	u, err := url.Parse(bt.realm)
 	if err != nil {
 		return err
