@@ -58,6 +58,9 @@ func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
 		// we are redirected, only set it when the authorization header matches
 		// the registry with which we are interacting.
 		// In case of redirect http.Client can use an empty Host, check URL too.
+		logrus.Debugf("in.Host - %s", in.Host)
+		logrus.Debugf("in.URL.Host - %s", in.URL.Host)
+		logrus.Debugf("bt.registry.RegistryStr - %s", bt.registry.RegistryStr())
 		if in.Host == bt.registry.RegistryStr() || in.URL.Host == bt.registry.RegistryStr() {
 			logrus.Debugf("Setting authorisation header")
 			in.Header.Set("Authorization", hdr)
@@ -78,6 +81,7 @@ func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
 		if err = bt.refresh(); err != nil {
 			return nil, err
 		}
+		logrus.Debugf("retrying request...")
 		return sendRequest()
 	}
 
@@ -88,6 +92,7 @@ func (bt *bearerTransport) refresh() error {
 	logrus.Debugf("entering refresh()")
 	u, err := url.Parse(bt.realm)
 	if err != nil {
+		logrus.Debugf("FAILED - url.Parse(%s)", bt.realm)
 		return err
 	}
 	b := &basicTransport{
@@ -104,16 +109,20 @@ func (bt *bearerTransport) refresh() error {
 
 	resp, err := client.Get(u.String())
 	if err != nil {
+		logrus.Debugf("FAILED - client.Get")
 		return err
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp, http.StatusOK); err != nil {
+		logrus.Debugf("FAILED - CheckError")
 		return err
 	}
 
+	logrus.Debugf("reading body")
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		logrus.Debugf("FAILED - reading body")
 		return err
 	}
 
@@ -125,14 +134,17 @@ func (bt *bearerTransport) refresh() error {
 
 	var response tokenResponse
 	if err := json.Unmarshal(content, &response); err != nil {
+		logrus.Debugf("FAILED - json.Unmarshal")
 		return err
 	}
 
 	// Find a token to turn into a Bearer authenticator
 	var bearer authn.Bearer
 	if response.Token != "" {
+		logrus.Debugf("setting new token")
 		bearer = authn.Bearer{Token: response.Token}
 	} else if response.AccessToken != "" {
+		logrus.Debugf("setting new access_token")
 		bearer = authn.Bearer{Token: response.AccessToken}
 	} else {
 		return fmt.Errorf("no token in bearer response:\n%s", content)
