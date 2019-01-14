@@ -50,6 +50,7 @@ func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
 	sendRequest := func() (*http.Response, error) {
 		hdr, err := bt.bearer.Authorization()
 		if err != nil {
+			logrus.Debugf("FAILED - bt.bearer.Authorization()")
 			return nil, err
 		}
 
@@ -73,12 +74,14 @@ func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
 
 	res, err := sendRequest()
 	if err != nil {
+		logrus.Debugf("FAILED - sending request...")
 		return nil, err
 	}
 
 	// Perform a token refresh() and retry the request in case the token has expired
 	if res.StatusCode == http.StatusUnauthorized {
 		if err = bt.refresh(); err != nil {
+			logrus.Debugf("FAILED - refresh()")
 			return nil, err
 		}
 		logrus.Debugf("retrying request...")
