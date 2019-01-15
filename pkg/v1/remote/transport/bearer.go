@@ -15,11 +15,13 @@
 package transport
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -153,6 +155,14 @@ func (bt *bearerTransport) refresh() error {
 		return fmt.Errorf("no token in bearer response:\n%s", content)
 	}
 
+	// DEBUG
+	claims := strings.Split(bearer.Token,".")[1]
+	data, err := base64.StdEncoding.DecodeString(claims)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+	fmt.Printf("%q\n", data)
+	
 	// Replace our old bearer authenticator (if we had one) with our newly refreshed authenticator.
 	bt.bearer = &bearer
 	return nil
